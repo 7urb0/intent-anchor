@@ -95,7 +95,7 @@ class TestDeviationChannel:
         evidence = EvidenceLog()
         evidence.record("verification", {"vid": "VERIFY-1", "check": "回归通过"})
         client = FakeClient([
-            tool_reply(FILE_DEVIATION := "file_deviation", {
+            tool_reply("file_deviation", {
                 "req_ids": ["REQ-002"], "reason": "英文数据源",
                 "scope": "local", "alternative": "机器翻译摘要",
                 "evidence_ref": "VERIFY-1"}, call_id="d1"),

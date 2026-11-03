@@ -205,7 +205,7 @@ class AnchoredAgent:
                     fn = all_tools[tc.name][0]
                     try:
                         result = fn(ctx={}, **tc.arguments)
-                    except Exception as exc:                      # 工具异常回填给模型
+                    except Exception as exc:  # noqa: BLE001 —— 工具异常必须回填给模型而非崩溃
                         result = {"error": f"{type(exc).__name__}: {exc}"}
                 messages.append({"role": "tool", "tool_call_id": tc.call_id,
                                  "content": json.dumps(result, ensure_ascii=False)})
