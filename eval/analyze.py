@@ -81,6 +81,24 @@ def main() -> int:
               f"{s['success_rate']:>10.1%}{s['blocked_rate']:>10.1%}"
               f"{s['avg_steps']:>8.1f}{s['errors']:>6}")
 
+    # 长度阶梯：按任务长度分档看违规率（C1 曲线）
+    if any(r.get("length") for r in rows):
+        print("\n按轨迹长度分档的违规率（C1）：")
+        buckets: dict[int, dict[str, list[float]]] = {}
+        for r in rows:
+            ln = r.get("length") or 0
+            buckets.setdefault(ln, {}).setdefault(r["arm"], []).append(
+                1.0 if r["violation"] else 0.0)
+        arms_sorted = sorted({r["arm"] for r in rows})
+        header = f"{'len':>5}" + "".join(f"{a:>16}" for a in arms_sorted)
+        print(header)
+        for ln in sorted(buckets):
+            line = f"{ln:>5}"
+            for a in arms_sorted:
+                v = buckets[ln].get(a, [])
+                line += f"{(sum(v)/len(v) if v else float('nan')):>15.0%} "
+            print(line)
+
     print("\n配对 bootstrap（任务级配对，5000 次重采样，95% CI）：")
     for other in ("gate", "full_no_reinject", "full"):
         if other in stats and "naive" in stats:

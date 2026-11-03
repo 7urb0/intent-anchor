@@ -17,3 +17,4 @@ Thumbs.db
 .DS_Store
 .env
 .coverage
+.pi/
