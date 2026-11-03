@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -103,16 +104,35 @@ class Spec:
 # ============================================================
 
 class EvidenceLog:
-    def __init__(self) -> None:
+    """证据层：线程安全 + 可选流式落盘（v0.4.0）。
+
+    - record() 全程持锁：并发调用时 seq 连续、哈希链不断；
+    - 传入 path 即进入流式模式：每条记录原子追加落盘并 flush，
+      格式与 save()/load() 的 JSONL 完全一致；
+    - load() 重建后可继续追加（_prev 从最后一行恢复）。
+    """
+
+    def __init__(self, path: str | None = None) -> None:
+        import threading
         self._records: list[dict] = []
         self._prev: str = "GENESIS"
+        self._lock = threading.Lock()
+        self._path = path
+        if path and not os.path.exists(path):
+            open(path, "w", encoding="utf-8").close()
 
     def record(self, kind: str, payload: dict) -> dict:
-        rec = {"seq": len(self._records), "ts": round(time.time(), 3),
-               "kind": kind, "payload": payload, "prev": self._prev}
-        rec["hash"] = _sha(rec)
-        self._records.append(rec)
-        self._prev = rec["hash"]
+        with self._lock:
+            rec = {"seq": len(self._records), "ts": round(time.time(), 3),
+                   "kind": kind, "payload": payload, "prev": self._prev}
+            rec["hash"] = _sha(rec)
+            self._records.append(rec)
+            self._prev = rec["hash"]
+            if self._path:
+                with open(self._path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
+                    f.flush()
+                    os.fsync(f.fileno())
         return rec
 
     def verify(self) -> bool:
@@ -250,6 +270,21 @@ class DeviationLedger:
 
     def confirm_inherited(self, dev_id: str, by: str) -> None:
         self._items[dev_id]["status"] = f"confirmed_by_{by}"
+
+    def inherit(self, item: dict, origin: str) -> str:
+        """把上游账本条目继承进本账本：保留裁决与轨迹，状态标记来源。"""
+        dev_id = item["dev"]["dev_id"]
+        self._items[dev_id] = {**item, "origin": origin,
+                               "status": f"inherited_from_{origin}"}
+        return dev_id
+
+    def all_items(self) -> dict[str, dict]:
+        """全量条目（含已回退的），供链级审计。"""
+        return dict(self._items)
+
+    def discard(self, dev_id: str) -> None:
+        """移除条目（仅用于交接被拒时的继承回滚）。"""
+        self._items.pop(dev_id, None)
 
 
 # ============================================================
