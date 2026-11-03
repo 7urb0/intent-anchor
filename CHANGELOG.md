@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.6.0] - 2026-11-03
+
+### 新增：L4 统计评测（消除「无量化数据」局限）
+
+- `eval/tasks.py`：12 个陷阱任务（4 族 × 2 陷阱 + 1 对照），判定全机械（哨兵值数值匹配）
+- `eval/runner.py`：四臂消融（`naive` / `gate` / `full` / `full_no_reinject`）× k 次重复，
+  并发执行，原始数据落 `eval/results/*.json`
+- `eval/analyze.py`：按臂聚合 + **任务级配对 bootstrap 95% CI**
+- `eval/EVALUATION.md`：完整实验报告（含局限与负面结果）
+
+### 实测结论（144 次真实运行，deepseek-chat）
+
+| 臂 | 违规率 | 成功率 |
+|---|---|---|
+| `naive`（裸工具） | 41.7% | 86.1% |
+| `gate`（有申报通道、无 fail-closed） | 44.4% | 88.9% |
+| `full`（完整 harness） | **0.0%** | 91.7% |
+| `full_no_reinject` | 0.0% | 91.7% |
+
+- `full − naive` = **−41.7%**，95% CI [−69.4%, −16.7%] → 显著
+- `gate − naive` = +2.8%，CI [−13.9%, +19.4%] → **无显著差异**：只加申报通道没有用，
+  **fail-closed 才是效果来源**
+- `full_no_reinject` 与 `full` 相同：周期重注入在 2–3 步的短任务上**未测出收益**（如实报告）
+
+### 其它
+- `AnchoredAgent` 新增 `reinject_every` 参数（消融用）
+- `Makefile` 新增 `make eval`
+
 ## [0.5.0] - 2026-11-03
 
 ### 新增：四层测试架构（先调研 LangGraph / pydantic-ai / OpenAI Agents SDK 后落地）

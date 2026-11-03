@@ -114,7 +114,8 @@ class AgentResult:
 
 class AnchoredAgent:
     def __init__(self, spec: Spec, evidence: EvidenceLog, client: ModelClient,
-                 max_steps: int = 8, arbiter: Arbiter | None = None) -> None:
+                 max_steps: int = 8, arbiter: Arbiter | None = None,
+                 reinject_every: int = 3) -> None:
         self.spec = spec
         self.evidence = evidence
         self.client = client
@@ -122,7 +123,9 @@ class AnchoredAgent:
         self.ledger = DeviationLedger()
         # 可注入仲裁器：评测消融需要对照「弱仲裁」等变体
         self.arbiter = arbiter or Arbiter(spec)
-        self.gateway = ToolGateway(spec, self.ledger, evidence)
+        # 周期性硬约束重注入的间隔；评测中可调大以关闭该机制
+        self.gateway = ToolGateway(spec, self.ledger, evidence,
+                                   reinject_every=reinject_every)
         self._tools: dict[str, tuple[Callable, dict, str]] = {}
         self.last_transcript: list[dict] = []
 

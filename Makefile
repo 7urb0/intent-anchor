@@ -21,3 +21,7 @@ cov:
 # L3 真实模型冒烟（需 .env，手动执行，会产生少量费用）
 live:
 	uv run pytest -m live -q
+
+# L4 消融评测（真实调用，产生费用；先 runner 再 analyze）
+eval:
+	uv run python -m eval.runner --repeats 3 --workers 6
