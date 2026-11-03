@@ -30,7 +30,7 @@
 ## 快速开始
 
 ```bash
-git clone https://github.com/Nuyuk25721/intent-anchor.git
+git clone https://github.com/7urb0/intent-anchor.git
 cd intent-anchor
 uv sync                # 零运行时依赖；uv 自动建环境
 uv run pytest          # 15 个行为契约测试

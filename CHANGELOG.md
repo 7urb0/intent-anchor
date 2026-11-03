@@ -16,4 +16,4 @@
 2. **策略分级机械生效**：`policy_mode=short` 下软约束偏离免证据批量入账，框架开销随任务长度伸缩
 3. **架构断言可执行化**：新增 `verify_gateway_coverage()`，「无目标状态查询的工具调用」从行为不可区分变成测试直接红
 
-[0.1.0]: https://github.com/Nuyuk25721/intent-anchor/releases/tag/v0.1.0
+[0.1.0]: https://github.com/7urb0/intent-anchor/releases/tag/v0.1.0
