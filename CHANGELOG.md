@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.4.0] - 2026-11-03
+
+### 新增：多 Agent 链式交接（消除局限③）+ 并发证据层（消除局限④）
+- `AgentNode` / `HandoverChain`：N 级链式交接——偏离随清单显式传递（佐证验证
+  事件一并复制并标记来源），下游逐条 accept / challenge；被拒交接回滚继承；
+  `audit()` 把「偏离被静默丢弃」变成可检出的链级违例
+- `DeviationLedger.inherit / all_items / discard`
+- `EvidenceLog`：线程安全（并发 8 线程 × 25 记录，seq 连续、哈希链完整）+
+  可选流式落盘（每条记录原子 append + fsync，格式与快照一致）
+
+### 测试
+- 34 → 44 个：三级链 accept 贯通、缺裁决拒绝+回滚、跨跳质疑升级/回退、
+  链级审计检出静默丢失、并发哈希链完整性、流式 sink 与快照格式互通
+
+## [0.3.0] - 2026-11-03
+
+### 新增：真实模型集成（消除局限①）
+- `AnchoredAgent`：真实 LLM 驱动的受锚定 Agent（OpenAI 兼容协议，DeepSeek 实测通过）
+- 治理工具面：`file_deviation`（偏离申报唯一通道）+ `request_goal_state`（目标状态显式查询）
+- ESCALATE 即阻塞：触及硬约束或无验证证据的偏离直接终止执行，等待人工裁决
+- `examples/live_demo.py`：端到端实测——官方接口超时场景下，真实模型未擅自绕过，
+  走申报通道被 fail-closed 拦截，全程轨迹可审计（哈希链证据层）
+- 依赖：openai>=1.0（唯一运行时依赖）
+
+### 测试
+- 27 → 34 个：FakeClient 脚本回放覆盖批准/阻塞/fail-closed/未知工具/异常回填，
+  CI 零依赖 key；真实调用以 examples/live_demo.py 门控
+
 ## [0.2.0] - 2026-11-03
 
 ### 新增
