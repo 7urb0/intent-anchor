@@ -236,7 +236,7 @@ class TestEvidencePersistence:
         path = str(tmp_path / "evidence.jsonl")
         ev.save(path)
         # 模拟有人直接改快照文件：哈希链必须抓住
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         import json
         rec = json.loads(lines[0])

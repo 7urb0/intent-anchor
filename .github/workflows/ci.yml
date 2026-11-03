@@ -1,10 +1,15 @@
 name: CI
 on: [push, pull_request]
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uv sync
-      - run: uv run pytest -q
+      - name: Install
+        run: uv sync
+      - name: Lint (L0)
+        run: uv run ruff check .
+      - name: Tests + coverage gate (L1/L2)
+        run: uv run pytest -m "not live" --cov=goal_harness --cov-report=term-missing

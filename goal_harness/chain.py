@@ -102,7 +102,7 @@ class HandoverChain:
         「下游没记录」意味着偏离被静默丢弃——审计违例。
         """
         violations: list[str] = []
-        for up, down in zip(self.nodes, self.nodes[1:]):
+        for up, down in zip(self.nodes, self.nodes[1:], strict=False):
             for dev_id, item in up.ledger.all_items().items():
                 if down.ledger.get(dev_id) is None:
                     violations.append(

@@ -58,6 +58,20 @@ class ModelClient:
         raise NotImplementedError
 
 
+# 全局真实请求熔断（对齐 pydantic-ai 的 ALLOW_MODEL_REQUESTS = False）
+_REAL_REQUESTS_BLOCKED = False
+
+
+def set_real_requests_blocked(blocked: bool) -> None:
+    """测试用：熔断/恢复所有真实模型请求。"""
+    global _REAL_REQUESTS_BLOCKED
+    _REAL_REQUESTS_BLOCKED = blocked
+
+
+class RealModelRequestBlocked(RuntimeError):
+    """测试环境误发真实模型请求时抛出。"""
+
+
 class OpenAICompatClient(ModelClient):
     """OpenAI 兼容实现（DeepSeek / DashScope / OpenAI）。"""
 
@@ -67,6 +81,9 @@ class OpenAICompatClient(ModelClient):
         self.model = model
 
     def chat(self, messages: list[dict], tools_schema: list[dict]) -> ModelReply:
+        if _REAL_REQUESTS_BLOCKED:
+            raise RealModelRequestBlocked(
+                "测试环境禁止真实模型请求：请使用 goal_harness.testing.ScriptedModel")
         resp = self._client.chat.completions.create(
             model=self.model,
             messages=messages,             # type: ignore[arg-type]
@@ -97,15 +114,17 @@ class AgentResult:
 
 class AnchoredAgent:
     def __init__(self, spec: Spec, evidence: EvidenceLog, client: ModelClient,
-                 max_steps: int = 8) -> None:
+                 max_steps: int = 8, arbiter: Arbiter | None = None) -> None:
         self.spec = spec
         self.evidence = evidence
         self.client = client
         self.max_steps = max_steps
         self.ledger = DeviationLedger()
-        self.arbiter = Arbiter(spec)
+        # 可注入仲裁器：评测消融需要对照「弱仲裁」等变体
+        self.arbiter = arbiter or Arbiter(spec)
         self.gateway = ToolGateway(spec, self.ledger, evidence)
         self._tools: dict[str, tuple[Callable, dict, str]] = {}
+        self.last_transcript: list[dict] = []
 
     # ---- 注册业务工具（自动过网关）+ 治理工具 ----
 
@@ -205,7 +224,7 @@ class AnchoredAgent:
                     fn = all_tools[tc.name][0]
                     try:
                         result = fn(ctx={}, **tc.arguments)
-                    except Exception as exc:  # noqa: BLE001 —— 工具异常必须回填给模型而非崩溃
+                    except Exception as exc:
                         result = {"error": f"{type(exc).__name__}: {exc}"}
                 messages.append({"role": "tool", "tool_call_id": tc.call_id,
                                  "content": json.dumps(result, ensure_ascii=False)})
@@ -215,5 +234,6 @@ class AnchoredAgent:
             if blocked:
                 break
 
+        self.last_transcript = [dict(m) for m in messages]
         return AgentResult(final_text=final_text, steps=min(_ + 1, self.max_steps),
                            blocked=blocked, escalated=escalated)

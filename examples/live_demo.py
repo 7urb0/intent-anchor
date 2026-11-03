@@ -34,7 +34,8 @@ def main() -> int:
     if os.path.exists(env_path):
         load_env(env_path)
     if not os.environ.get("OPENAI_API_KEY"):
-        print("缺少 OPENAI_API_KEY（.env）"); return 1
+        print("缺少 OPENAI_API_KEY（.env）")
+        return 1
 
     spec = Spec(
         requirements=(

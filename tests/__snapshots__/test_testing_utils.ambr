@@ -1,0 +1,31 @@
+# serializer version: 1
+# name: test_transcript_snapshot_escalation_path
+  list([
+    dict({
+      'content': '<system prompt: spec 已注入>',
+      'role': 'system',
+    }),
+    dict({
+      'content': '查股价',
+      'role': 'user',
+    }),
+    dict({
+      'content': '',
+      'role': 'assistant',
+      'tool_calls': list([
+        dict({
+          'function': dict({
+            'arguments': '{"req_ids": ["REQ-001"], "reason": "官方接口超时", "scope": "local", "alternative": "缓存", "evidence_ref": ""}',
+            'name': 'file_deviation',
+          }),
+          'id': '<id>',
+          'type': 'function',
+        }),
+      ]),
+    }),
+    dict({
+      'content': '{"dev_id": "DEV-001", "verdict": "escalate", "detail": "触及硬约束 [\'REQ-001\'] → 双人控制队列，阻塞下游", "instruction": "执行已被阻塞：该偏离触及硬约束或缺乏验证证据，等待人工裁决，不得继续。"}',
+      'role': 'tool',
+    }),
+  ])
+# ---

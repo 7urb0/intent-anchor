@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.5.0] - 2026-11-03
+
+### 新增：四层测试架构（先调研 LangGraph / pydantic-ai / OpenAI Agents SDK 后落地）
+
+- **L0 静态门禁**：ruff（中文标点规则 RUF001-003 按语言适配关闭）+ 覆盖率阈值 95% +
+  `Makefile` 单入口（`make check` / `make live`）；CI 改为「lint + 测试 + 覆盖率」
+- **L1 属性测试**：hypothesis 三条不变量——任意记录序列可验证、任意字段篡改必被检出、
+  `pending()` 永不含已回退条目
+- **L2 脚本化模型公开 API** `goal_harness.testing`：
+  - `ScriptedModel`（对齐 OpenAI Agents SDK）+ `from_function`（pydantic-ai FunctionModel 式）
+  - `block_real_requests()` 全局真实请求熔断（pydantic-ai ALLOW_MODEL_REQUESTS=False 同款），
+    conftest 自动启用 + socket 封禁兜底（`@pytest.mark.live` 放行）
+  - `normalize_transcript()` + syrupy 轨迹快照；`AnchoredAgent.last_transcript` 记录完整对话
+  - `deterministic_clock` 夹具钉死时间源
+- **L3 真实模型冒烟**：`tests/test_live_smoke.py`（正常路径 / 故障阻塞），`-m live` 手动跑
+- pytest marker 分层：`live` / `slow` / `serial`，默认 `addopts = -m 'not live'`
+
+### 测试
+- 44 → **58 个**：+3 属性测试、+7 testing API、+4 分支覆盖（真实客户端解析、REVERT 回填等）
+- 覆盖率 **98%**（阈值 95%），ruff 零告警
+
 ## [0.4.0] - 2026-11-03
 
 ### 新增：多 Agent 链式交接（消除局限③）+ 并发证据层（消除局限④）

@@ -33,7 +33,8 @@
 git clone https://github.com/7urb0/intent-anchor.git
 cd intent-anchor
 uv sync                          # 唯一运行时依赖 openai；uv 自动建环境
-uv run pytest                    # 44 个行为契约测试（CI 零 key 依赖）
+uv run pytest                    # 58 个测试（L0–L2，CI 零 key 依赖）
+uv run pytest -m live            # L3 真实模型冒烟（需 .env）
 uv run python examples/demo.py       # 离线演示（mock）
 uv run python examples/live_demo.py  # 真实模型演示（需 .env，见下）
 uv run python examples/bench.py      # 网关开销基准
@@ -66,7 +67,7 @@ ESCALATE 阻塞执行，全程轨迹落在哈希链证据层。
 **这是概念验证，不是生产框架。** 以下边界如实声明：
 
 1. **已接入真实模型**（v0.3：DeepSeek，OpenAI 兼容协议，`examples/live_demo.py` 可复现）；与 LangGraph 等编排框架的集成仍在路线图
-2. **无大规模量化数据**——「能拦住漂移」有 44 个行为契约测试背书，但真实任务上的约束违反率消融对照（v0.4 计划）未做
+2. **无大规模量化数据**——「能拦住漂移」有 58 个测试（含属性测试与真实模型冒烟）背书，但真实任务上的约束违反率消融对照（v0.6 计划）未做
 3. **链式拓扑为最简实现**——线性链已验证，分叉/汇聚拓扑未验证
 4. **证据层并发为单进程线程锁**——多进程写同一证据文件未支持
 5. **API 不稳定**——0.x 版本，接口随时会变
@@ -82,9 +83,19 @@ ESCALATE 阻塞执行，全程轨迹落在哈希链证据层。
 
 ## 测试与质量
 
-- 44 个行为契约测试，核心模块覆盖率 **99%**（`uv run pytest --cov=goal_harness`）
-- `ruff check` 零告警
-- 网关开销基准（`examples/bench.py`，本机参考值）：经网关调用净开销约 **18 µs/次**，主要来自每调用 2 次 SHA256 哈希——相对一次 LLM 工具调用（百毫秒级）可忽略
+四层测试架构（设计依据与业界调研见 [docs/testing-strategy.md](docs/testing-strategy.md)）：
+
+| 层 | 内容 | 进 CI |
+|---|---|---|
+| **L0 静态门禁** | `ruff`（零告警）+ 覆盖率阈值 **95%** | ✅ |
+| **L1 单元** | 纯逻辑 50 个 + **hypothesis 属性测试**（哈希链不变量） | ✅ |
+| **L2 脚本化模型** | `goal_harness.testing.ScriptedModel`（对齐 OpenAI Agents SDK）+ `FunctionModel` 式回调 + **轨迹快照**（syrupy）+ **全局真实请求熔断** + socket 封禁 | ✅ |
+| **L3 真实模型冒烟** | 2 个端到端（正常路径 / 故障阻塞），`@pytest.mark.live` 默认跳过 | ❌ 手动 `make live` |
+| **L4 统计评测** | 四臂消融 + k 次重复 + bootstrap CI | ❌ 规划中（v0.6） |
+
+- 当前：**58 个测试全绿，核心覆盖率 98%**，`ruff` 零告警
+- 确定性：`deterministic_clock` 夹具钉死时间源，轨迹可做快照断言
+- 网关开销基准（`examples/bench.py`，本机参考值）：经网关调用净开销约 **18 µs/次**
 
 ## 致谢
 

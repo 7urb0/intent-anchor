@@ -1,6 +1,6 @@
 [project]
 name = "intent-anchor"
-version = "0.4.0"
+version = "0.5.0"
 description = "Goal-state as a first-class citizen: mechanical intent anchoring for long-horizon agents (proof of concept)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -10,7 +10,14 @@ dependencies = ["openai>=1.0"]
 keywords = ["agent", "harness", "long-horizon", "intent-drift", "llm"]
 
 [dependency-groups]
-dev = ["pytest>=8.0", "pytest-cov>=6.0", "ruff>=0.8"]
+dev = [
+  "pytest>=8.0",
+  "pytest-cov>=6.0",
+  "ruff>=0.8",
+  "mypy>=1.13",
+  "hypothesis>=6.100",
+  "syrupy>=4.7",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -18,3 +25,42 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["goal_harness"]
+
+# ---------- L0 静态门禁 ----------
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+disallow_any_generics = false   # 0.x 期：允许裸 dict/Callable，其余保持 strict
+warn_unused_ignores = true
+files = ["goal_harness"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+# RUF001/002/003 会把中文标点判为「易混淆字符」——中文注释的代码库不适用
+ignore = ["RUF001", "RUF002", "RUF003", "E501"]
+
+# ---------- 测试分层（对齐 OpenAI Agents SDK 的 marker 惯例） ----------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "live: 真实模型调用（需 OPENAI_API_KEY；默认跳过）",
+  "slow: 慢测试（大循环/多进程）",
+  "serial: 需要独占执行（并发/文件锁类）",
+]
+addopts = "-m 'not live'"
+filterwarnings = ["error::UserWarning"]
+
+[tool.coverage.run]
+source = ["goal_harness"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
+exclude_lines = ["pragma: no cover", "raise NotImplementedError", "if TYPE_CHECKING:"]

@@ -169,7 +169,7 @@ class EvidenceLog:
     def load(cls, path: str) -> EvidenceLog:
         """从 JSONL 快照重建证据层；重建后 verify()/find_verification() 立即可用。"""
         inst = cls()
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
