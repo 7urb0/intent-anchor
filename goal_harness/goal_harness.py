@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 goal_harness.py —— 「目标状态作为一等公民」的 Harness 原型（v2）
 ====================================================================
@@ -38,9 +37,10 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 
 def _sha(obj: Any) -> str:
@@ -65,10 +65,24 @@ class Requirement:
 
 @dataclass(frozen=True)
 class Spec:
-    """任务开始时冻结，写入后只读。执行中任何人只能读、不能改。"""
+    """任务开始时冻结，写入后只读。执行中任何人只能读、不能改。
+
+    构造即校验（机械规则，非约定）：需求非空、ID 唯一、策略模式合法。
+    坏的规格应该在任务开始时就失败，而不是漂移到执行中段才暴露。
+    """
     requirements: tuple[Requirement, ...]
     policy_version: str                      # 偏离处理策略的版本号（组件 5）
     policy_mode: str = "stepwise"            # short=批量事后审查 / stepwise=逐级仲裁
+
+    def __post_init__(self) -> None:
+        if not self.requirements:
+            raise ValueError("Spec 至少需要一条需求")
+        ids = [r.req_id for r in self.requirements]
+        if len(ids) != len(set(ids)):
+            dupes = sorted({i for i in ids if ids.count(i) > 1})
+            raise ValueError(f"需求 ID 重复: {dupes}")
+        if self.policy_mode not in ("short", "stepwise"):
+            raise ValueError(f"未知 policy_mode: {self.policy_mode}（可选 short / stepwise）")
 
     def digest(self) -> str:
         return _sha({"reqs": [r.__dict__ for r in self.requirements],
@@ -121,6 +135,29 @@ class EvidenceLog:
 
     def filter(self, kind: str) -> list[dict]:
         return [r for r in self._records if r["kind"] == kind]
+
+    def save(self, path: str) -> None:
+        """快照导出为 JSONL（每行一条事件，按 seq 有序）。
+
+        append-only 语义不靠文件系统、靠哈希链保证：导出的快照被改任何
+        一个字符，load 回来 verify() 都会 False。并发流式追加未实现（见 README 局限）。
+        """
+        with open(path, "w", encoding="utf-8") as f:
+            f.writelines(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n" for rec in self._records)
+
+    @classmethod
+    def load(cls, path: str) -> EvidenceLog:
+        """从 JSONL 快照重建证据层；重建后 verify()/find_verification() 立即可用。"""
+        inst = cls()
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                rec = json.loads(line)
+                inst._records.append(rec)
+                inst._prev = rec["hash"]
+        return inst
 
     def __len__(self) -> int:
         return len(self._records)
@@ -204,8 +241,12 @@ class DeviationLedger:
         return self._items[dev.dev_id]
 
     def pending(self) -> list[dict]:
-        """进入下游的未决/已批准偏离（REVERT 的不外传）。"""
+        """进入下游的未决/已批准偏离（REVERT 的不外传——回退即退出交接清单）。"""
         return [v for v in self._items.values() if v["verdict"] in ("approve", "escalate")]
+
+    def get(self, dev_id: str) -> dict | None:
+        """按 ID 查任意偏离（含已回退的），供审计与测试断言。"""
+        return self._items.get(dev_id)
 
     def confirm_inherited(self, dev_id: str, by: str) -> None:
         self._items[dev_id]["status"] = f"confirmed_by_{by}"
@@ -297,9 +338,13 @@ class Handover:
             elif decisions[did] == "challenge":
                 # 质疑 → 重新仲裁（本原型中复用原裁决；真实实现应升级队列）
                 dev = DeviationApplication(**d["dev"])
-                verdict, trace = self.arbiter.rule(dev, self.evidence)
+                verdict, _trace = self.arbiter.rule(dev, self.evidence)
                 self.evidence.record("handover_challenge",
                                      {"dev": did, "by": downstream, "verdict": verdict.value})
                 if verdict is Verdict.REVERT:
                     d["verdict"] = Verdict.REVERT.value
                     d["status"] = f"challenged_and_reverted_by_{downstream}"
+                elif verdict is Verdict.ESCALATE:
+                    # fail-closed：质疑时证据已失效/不复存在 → 升级人工，继续阻塞下游
+                    d["verdict"] = Verdict.ESCALATE.value
+                    d["status"] = f"challenged_and_escalated_by_{downstream}"

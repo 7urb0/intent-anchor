@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 demo.py —— 演示 goal_harness v2 拦截漂移的对照组实验
 ======================================================
@@ -14,9 +13,18 @@ demo.py —— 演示 goal_harness v2 拦截漂移的对照组实验
   E. 架构测试        ：网关覆盖检查 + 哈希链防篡改演示
 """
 
-from goal_harness import (Arbiter, DeviationApplication, DeviationLedger,
-                          EvidenceLog, Handover, Requirement, Spec,
-                          ToolGateway, Verdict, verify_gateway_coverage)
+from goal_harness import (
+    Arbiter,
+    DeviationApplication,
+    DeviationLedger,
+    EvidenceLog,
+    Handover,
+    Requirement,
+    Spec,
+    ToolGateway,
+    Verdict,
+    verify_gateway_coverage,
+)
 
 # ---------- 组装不可变规格层 ----------
 SPEC = Spec(

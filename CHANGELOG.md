@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.0] - 2026-11-03
+
+### 新增
+- `EvidenceLog.save/load`：JSONL 快照落盘，篡改快照 load 后 `verify()` 必为 False
+- `Spec` 构造即校验：需求非空、ID 唯一、policy_mode 合法；`DeviationLedger.get()` 审计接口
+- `examples/bench.py`：网关开销基准（净开销约 18 µs/次，本地参考值）
+- 质量工程：pytest-cov（覆盖率 99%）+ ruff（零告警）
+
+### 修复
+- `Handover.receive` 质疑分支补全 fail-closed 语义：质疑时证据已失效 → `challenged_and_escalated`（继续阻塞下游），不再悬在半空
+
+### 测试
+- 15 → 27 个行为契约测试：新增 Spec 校验、快照往返/防篡改、混合约束升级、质疑回退/升级、网关注入未决偏离等场景
+
 ## [0.1.0] - 2026-11-03
 
 首个公开版本（概念验证原型）。
