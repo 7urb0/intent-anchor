@@ -62,6 +62,13 @@ class Requirement:
     req_id: str
     text: str
     hard: bool          # True = 不可协商的硬约束
+    # v0.7.0：需求 → 授权工具绑定（进度仲裁用：还有哪条路没试过）。
+    # 空元组 = 不约束（向后兼容）；非空 = 该需求只接受这些工具作为满足路径。
+    allowed_tools: tuple[str, ...] = ()
+    # v0.7.0：需求 → 禁用工具（policy-as-code 用：这些工具调用被确定性拒绝）。
+    # 只用 deny-list 而不是 allow-list——编排/流程工具（如巡检步）不属于
+    # 任何需求的「满足路径」，用 allow-list 会把它们一起拒掉（实测踩过）。
+    denied_tools: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -91,6 +98,23 @@ class Spec:
 
     def is_hard(self, req_id: str) -> bool:
         return any(r.req_id == req_id and r.hard for r in self.requirements)
+
+    # ---- v0.7.0：需求 → 工具绑定的机械查询（policy-as-code / 进度仲裁共用） ----
+
+    def tools_for(self, req_id: str) -> tuple[str, ...]:
+        """该需求授权的工具集合（未声明绑定 = 空元组 = 不约束）。"""
+        for r in self.requirements:
+            if r.req_id == req_id:
+                return r.allowed_tools
+        return ()
+
+    def bound_tools(self) -> frozenset[str]:
+        """全规格授权的工具并集（进度仲裁用）。空集 = 未声明授权路径。"""
+        return frozenset(t for r in self.requirements for t in r.allowed_tools)
+
+    def forbidden_tools(self) -> frozenset[str]:
+        """全规格显式禁用的工具并集（policy-as-code 用）。空集 = 不做策略拒绝。"""
+        return frozenset(t for r in self.requirements for t in r.denied_tools)
 
     def hard_summary(self) -> str:
         """供周期性重注入用：硬约束的紧凑清单。"""
@@ -297,16 +321,28 @@ class DeviationLedger:
 
 class ToolGateway:
     def __init__(self, spec: Spec, ledger: DeviationLedger,
-                 evidence: EvidenceLog, reinject_every: int = 3) -> None:
+                 evidence: EvidenceLog, reinject_every: int = 3,
+                 enforce_policy: bool = True) -> None:
         self.spec = spec
         self.ledger = ledger
         self.evidence = evidence
         self.reinject_every = reinject_every
+        # v0.7.0：工具级 deny——规格声明了 denied_tools 就机械生效，
+        # 不依赖调用方自觉。空集 = 不启用（向后兼容）。
+        self.enforce_policy = enforce_policy
+        self._denied = spec.forbidden_tools() if enforce_policy else frozenset()
         self._calls = 0
 
     def wrap(self, name: str, fn: Callable) -> Callable:
         def wrapped(ctx: dict, *args: Any, **kwargs: Any) -> Any:
             self._calls += 1
+            # ---- 结构副作用⓪：策略拒绝（v0.7.0，最先执行，先于任何副作用） ----
+            if self._denied and name in self._denied:
+                self.evidence.record("policy_denied", {"tool": name,
+                                                      "denied": sorted(self._denied)})
+                return {"error": "policy_denied",
+                        "detail": f"工具 {name} 被需求显式禁用（policy-as-code）",
+                        "hint": "该工具不可用；若授权路径不可行，请申报偏离"}
             # ---- 结构副作用①：强制查询并注入目标状态 ----
             ctx["goal_digest"] = self.spec.digest()
             ctx["pending_deviations"] = [d["dev"]["dev_id"]
@@ -318,7 +354,15 @@ class ToolGateway:
             self.evidence.record("goal_query", {"tool": name,
                                                 "digest": ctx["goal_digest"][:12]})
             # ---- 工具本体执行 ----
-            result = fn(ctx, *args, **kwargs)
+            # v0.7.0：失败调用同样记账——「尝试过但失败」是进度仲裁的关键证据，
+            # 不记账会让「已试过一次的路径」看起来从未尝试（会退化成无限驳回）。
+            try:
+                result = fn(ctx, *args, **kwargs)
+            except Exception as exc:
+                self.evidence.record("tool_call", {"tool": name,
+                                                   "args": [str(a)[:50] for a in args],
+                                                   "error": f"{type(exc).__name__}: {exc}"})
+                raise
             self.evidence.record("tool_call", {"tool": name,
                                                "args": [str(a)[:50] for a in args]})
             return result

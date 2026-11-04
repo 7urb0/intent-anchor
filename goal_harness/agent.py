@@ -180,11 +180,16 @@ class AnchoredAgent:
         return out
 
     def _request_goal_state(self, ctx: dict) -> dict:
-        return {"goal_digest": self.spec.digest()[:16],
-                "hard_constraints": self.spec.hard_summary(),
-                "policy": f"{self.spec.policy_version}({self.spec.policy_mode})",
-                "pending_deviations": [d["dev"]["dev_id"]
-                                       for d in self.ledger.pending()]}
+        out = {"goal_digest": self.spec.digest()[:16],
+               "hard_constraints": self.spec.hard_summary(),
+               "policy": f"{self.spec.policy_version}({self.spec.policy_mode})",
+               "pending_deviations": [d["dev"]["dev_id"]
+                                      for d in self.ledger.pending()]}
+        # v0.7.0：进度感知仲裁器在时，把「授权路径还剩什么」一并暴露给模型
+        progress = getattr(self.arbiter, "progress", None)
+        if callable(progress):
+            out["progress"] = progress(self.evidence)
+        return out
 
     # ---- 主循环 ----
 

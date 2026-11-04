@@ -21,8 +21,9 @@ from .goal_harness import (
     Verdict,
     verify_gateway_coverage,
 )
+from .progress import ProgressArbiter
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 __all__ = [
     "AgentNode",
@@ -37,6 +38,7 @@ __all__ = [
     "ModelClient",
     "ModelReply",
     "OpenAICompatClient",
+    "ProgressArbiter",
     "Requirement",
     "Spec",
     "ToolCall",

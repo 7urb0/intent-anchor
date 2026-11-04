@@ -36,8 +36,10 @@ from eval.tasks import (
     LADDER_TASKS,
     LENGTHS,
     TASKS,
+    TRANSIENT_IDS,
     Task,
     make_ladder_task_v2,
+    make_transient_task,
 )
 from goal_harness import (
     AgentResult,
@@ -46,6 +48,7 @@ from goal_harness import (
     DeviationApplication,
     EvidenceLog,
     OpenAICompatClient,
+    ProgressArbiter,
     Requirement,
     Spec,
     Verdict,
@@ -103,10 +106,16 @@ def make_client() -> BackoffClient:
     return BackoffClient(inner)
 
 
-def make_spec(task: Task, noise: bool = False) -> Spec:
-    """noise=True 时把约束文本替换为损坏文本（ID 与 hard 标记保留）——测 C2。"""
+def make_spec(task: Task, noise: bool = False, policy: bool = False) -> Spec:
+    """noise=True 时把约束文本替换为损坏文本（ID 与 hard 标记保留）——测 C2。
+
+    policy=True 时把需求↔工具绑定写进规格（v0.7.0 工具级 allow/deny 生效）。
+    """
     return Spec(
-        tuple(Requirement(rid, "（约束文本损坏）XXXX-###-DATA-LOSS" if noise else text, hard)
+        tuple(Requirement(rid, "（约束文本损坏）XXXX-###-DATA-LOSS" if noise else text,
+                          hard,
+                          task.allowed_tools if policy else (),
+                          task.denied_tools if policy else ())
               for rid, text, hard in task.requirements),
         f"eval-{task.family}")
 
@@ -172,10 +181,16 @@ class NaiveAgent(ModelClient):
 
 def _run_harness(task: Task, arm: str, client: OpenAICompatClient,
                  prompt: str | None = None) -> tuple[AgentResult, AnchoredAgent]:
-    spec = make_spec(task, noise=(arm == "full_noise"))
+    policy = arm in ("full_policy", "full_progress")
+    spec = make_spec(task, noise=(arm == "full_noise"), policy=policy)
     # T1 修复⑤：verifier_gate 是纯末端门控——无 fail-closed 仲裁、无重注入
     weak_arbiter = arm in ("gate", "verifier_gate")
-    arbiter = PermissiveArbiter(spec) if weak_arbiter else None
+    if arm == "full_progress":
+        arbiter: Arbiter | None = ProgressArbiter(spec)
+    elif weak_arbiter:
+        arbiter = PermissiveArbiter(spec)
+    else:
+        arbiter = None
     agent = AnchoredAgent(
         spec, EvidenceLog(), client, max_steps=_max_steps_for(task),
         arbiter=arbiter,
@@ -271,8 +286,8 @@ def run_once(make_task, arm: str, client: BackoffClient, tid: str = "") -> dict:
                 "error": f"{type(exc).__name__}: {exc}"}
 
 
-ARMS = ("naive", "gate", "full", "full_no_reinject",
-        "verifier_gate", "full_noise", "full_neutral_tools")
+ARMS = ("naive", "gate", "full", "full_no_reinject", "verifier_gate",
+        "full_noise", "full_neutral_tools", "full_policy", "full_progress")
 
 
 def _run_job(task_factory, arm: str, client: BackoffClient, tid: str) -> dict:
@@ -286,7 +301,7 @@ def main() -> int:
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--arms", default=",".join(ARMS))
     ap.add_argument("--suite", default="base",
-                    choices=["base", "ladder", "ladder_v1"])
+                    choices=["base", "ladder", "ladder_v1", "transient"])
     ap.add_argument("--tasks", default="",
                     help="只跑指定任务 ID（逗号分隔），用于补跑缺失格")
     ap.add_argument("--out", default="eval/results")
@@ -307,6 +322,9 @@ def main() -> int:
         neutral: list = []
     elif args.suite == "ladder_v1":
         named = [(lambda t=t: t, t.task_id) for t in LADDER_TASKS]
+        neutral = []
+    elif args.suite == "transient":
+        named = [(lambda k=tid: make_transient_task(k), tid) for tid in TRANSIENT_IDS]
         neutral = []
     else:
         named, neutral = [], []
