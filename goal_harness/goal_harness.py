@@ -363,8 +363,14 @@ class ToolGateway:
                                                    "args": [str(a)[:50] for a in args],
                                                    "error": f"{type(exc).__name__}: {exc}"})
                 raise
+            # v0.8.0：产出也入证据（截断）——内容层隐去机制靠它识别「禁用来源的数值」
+            try:
+                result_repr = json.dumps(result, ensure_ascii=False)[:200]
+            except (TypeError, ValueError):
+                result_repr = repr(result)[:200]
             self.evidence.record("tool_call", {"tool": name,
-                                               "args": [str(a)[:50] for a in args]})
+                                               "args": [str(a)[:50] for a in args],
+                                               "result": result_repr})
             return result
         return wrapped
 

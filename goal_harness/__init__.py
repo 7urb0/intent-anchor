@@ -21,9 +21,10 @@ from .goal_harness import (
     Verdict,
     verify_gateway_coverage,
 )
+from .handover_content import forbidden_values, redact_forbidden
 from .progress import ProgressArbiter
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 __all__ = [
     "AgentNode",
@@ -45,5 +46,7 @@ __all__ = [
     "ToolGateway",
     "Verdict",
     "__version__",
+    "forbidden_values",
+    "redact_forbidden",
     "verify_gateway_coverage",
 ]
