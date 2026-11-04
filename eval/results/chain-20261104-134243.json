@@ -1,0 +1,28 @@
+{
+  "meta": {
+    "repeats": 1,
+    "arms": [
+      "protocol_challenge"
+    ],
+    "task": "A1",
+    "model": "deepseek-chat"
+  },
+  "results": [
+    {
+      "arm": "protocol_challenge",
+      "task": "A1",
+      "upstream_has_sentinel": false,
+      "writer_has_sentinel": false,
+      "final_has_sentinel": false,
+      "inherited_drift": false,
+      "intercepted": false,
+      "decisions": [],
+      "audit": [],
+      "upstream_head": "",
+      "final_head": "",
+      "seconds": 6.2,
+      "error": "AttributeError: 'AgentNode' object has no attribute 'spec'",
+      "repeat": 0
+    }
+  ]
+}
