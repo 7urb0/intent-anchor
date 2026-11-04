@@ -287,6 +287,8 @@ def main() -> int:
     ap.add_argument("--arms", default=",".join(ARMS))
     ap.add_argument("--suite", default="base",
                     choices=["base", "ladder", "ladder_v1"])
+    ap.add_argument("--tasks", default="",
+                    help="只跑指定任务 ID（逗号分隔），用于补跑缺失格")
     ap.add_argument("--out", default="eval/results")
     args = ap.parse_args()
 
@@ -316,6 +318,11 @@ def main() -> int:
                                 f"V-{fam[:2].upper()}{n}"))
 
     # 臂分配：full_neutral_tools 跑中性变体；其余臂跑 named 变体
+    only = [t.strip() for t in (args.tasks or "").split(",") if t.strip()]
+    if only:
+        named = [x for x in named if x[1] in only]
+        neutral = [x for x in neutral if x[1] in only]
+        print(f"仅跑指定任务: {only}", flush=True)
     jobs = []
     for fac, tid in named:
         for arm in arms:
